@@ -76,23 +76,7 @@ async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "actix_web=info");
     env_logger::init();
 
-    // Init our auth to paddle's api
-    //let jwt = match external::get_jwt(&api_key, &api_secret) {
-    //    Ok(v) => v,
-    //    Err(e) => panic!("Could not get the JWT: {}", e),
-    //};
-
-    // Start 3 parallel db executors
-    // let addr = SyncArbiter::start(3, || {
-    //     DbExecutor(establish_connection())
-    // });
-
     // set up database connection pool
-    // let connspec = std::env::var("DATABASE_URL").expect("DATABASE_URL");
-    // let manager = ConnectionManager::<MysqlConnection>::new(connspec);
-    // let pool = r2d2::Pool::builder()
-    //     .build(manager)
-    //     .expect("Failed to create pool.");
     let pool = establish_connection_pool();
 
     HttpServer::new(move || {
@@ -102,10 +86,9 @@ async fn main() -> std::io::Result<()> {
             // enable logger
             .wrap(middleware::Logger::default())
             .service(
-                web::scope("/v1/")
+                web::scope("/v1/")//there is no need to have /api/v1 since NGINX is going to be redirecting us under /api anyways
                 .service(stats_get)
              )
-
             //.resource("/{name}", |r| r.method(Method::GET).a(db_index))
             //.service(web::resource("/index.html").to(|| async { "Hello world!" }))
             //.service(web::resource("/").to(index))
@@ -117,25 +100,7 @@ async fn main() -> std::io::Result<()> {
     .await
 }
 
-/// Async handler
-// async fn db_index(req: &HttpRequest<AppState>) -> HttpResponse {
-//     let name = &req.match_info()["name"];
-
-//     // Send message to `DbExecutor` actor
-//     req.state()
-//         .db
-//         .send(NewUser {
-//             display_name: &name.to_owned(),
-//             steamid2: "dank",
-//         })
-//         .from_err()
-//         .and_then(|res| match res {
-//             Ok(user) => Ok(HttpResponse::Ok().json(user)),
-//             Err(_) => Ok(HttpResponse::InternalServerError().into()),
-//         })
-//         .responder()
-// }
-
+//TODO: Update tests to test API
 #[cfg(test)]
 mod tests {
     use super::*;
