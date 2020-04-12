@@ -101,8 +101,11 @@ async fn main() -> std::io::Result<()> {
             .data(pool.clone())
             // enable logger
             .wrap(middleware::Logger::default())
+            .service(
+                web::scope("/v1/")
+                .service(stats_get)
+             )
 
-            .service(stats_get)
             //.resource("/{name}", |r| r.method(Method::GET).a(db_index))
             //.service(web::resource("/index.html").to(|| async { "Hello world!" }))
             //.service(web::resource("/").to(index))
