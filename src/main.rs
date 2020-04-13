@@ -3,21 +3,36 @@ extern crate diesel;
 extern crate dotenv;
 
 //actix-web
-use actix_web::{http, middleware, web, App, HttpRequest, HttpResponse, HttpServer, get, post, Error};
-use serde::{Serialize, Deserialize};
+use actix_web::{
+    get, http, middleware, post, web, App, Error, HttpRequest, HttpResponse, HttpServer,
+};
+// http authentication
+use actix_web::dev::ServiceRequest;
+use actix_web_httpauth::extractors::basic::BasicAuth;
+use actix_web_httpauth::middleware::HttpAuthentication;
+use actix_web_httpauth::extractors::{AuthenticationError, basic, bearer};
 
-use sfdb_connect::models::*;
+use serde::{Deserialize, Serialize};
+
 use diesel::prelude::*;
+use sfdb_connect::models::*;
 use sfdb_connect::*;
 
 use diesel::r2d2::{self, ConnectionManager};
-//type DbPool = r2d2::Pool<ConnectionManager<MysqlConnection>>;
 
-
-// struct AppState {
-//     db: Addr<DbExecutor>,
-// }
-
+// Request Authorizor
+async fn validator(
+    req: ServiceRequest,
+    _credentials: BasicAuth,
+) -> Result<ServiceRequest, Error> {
+    Ok(req)
+    // if (_credentials.user_id() == "dank" && _credentials.password().unwrap().to_owned() == "memes") {
+    //     //let resp = req.build_response(http::StatusCode::OK).body("AUTHORIZED");
+    //     Ok(req)
+    // } else {
+    //     Err(AuthenticationError::from(basic::Config::default()).into())
+    // }
+}
 
 async fn index(req: HttpRequest) -> &'static str {
     println!("REQ: {:?}", req);
@@ -26,19 +41,24 @@ async fn index(req: HttpRequest) -> &'static str {
 
 #[derive(Deserialize)]
 pub struct AuthRequest {
-   name: String
+    name: String,
 }
 
 async fn stream_auth(req: HttpRequest, web::Query(info): web::Query<AuthRequest>) -> HttpResponse {
     println!("received stream name param: {:?}", info.name);
-    HttpResponse::TemporaryRedirect().header("Location", "fetched-username-from-key-here").body("AUTHENTICATION SUCCESS")
+    HttpResponse::TemporaryRedirect()
+        .header("Location", "fetched-username-from-key-here")
+        .body("AUTHENTICATION SUCCESS")
 }
 
 // ranks api: /ranks (set,get,put,post)
 // /stats/{userid}
 // part of the ranks api. Returns stats for given steam id
 #[get("/stats/{id}")]
-async fn stats_get(pool: web::Data<DbPool>, id: web::Path<i32>) -> Result<HttpResponse, Error> {
+async fn stats_get_by_id(
+    pool: web::Data<DbPool>,
+    id: web::Path<i32>,
+) -> Result<HttpResponse, Error> {
     let id = id.into_inner();
     let conn = pool.get().expect("couldn't get db connection from pool");
     // use web::block to offload blocking Diesel code without blocking server thread
@@ -52,21 +72,29 @@ async fn stats_get(pool: web::Data<DbPool>, id: web::Path<i32>) -> Result<HttpRe
     if let Some(user) = user {
         Ok(HttpResponse::Ok().json(user))
     } else {
-        let res = HttpResponse::NotFound()
-            .body(format!("No user found with id: {}", id));
+        let res = HttpResponse::NotFound().body(format!("No user found with id: {}", id));
         Ok(res)
     }
 }
 
-
-async fn ranks_post() -> &'static str {
+// sends data, expects it to be handled
+async fn post_stats() -> &'static str {
     "yote"
 }
 
-async fn ranks_put() -> &'static str {
+// put will create if not exists or replace if does exist
+async fn put_stats() -> &'static str {
     "heyooo"
 }
 
+// receives stats from latest round (such as round points) with steam id
+// points are then calculated into rws and merged with existing stats
+// if successful, returns success and the newest calculated RWS value and rounds total
+// Required Inputs: auth, SteamID, round points (round count is auto incremented)
+#[post("/newround/")]
+async fn post_new_round() -> Result<HttpResponse, Error> {
+    Ok(HttpResponse::Ok().body("ayyo"))
+}
 
 // vip api: /vip/steam/<steamid> gets vip status via steamid
 
@@ -79,21 +107,22 @@ async fn main() -> std::io::Result<()> {
     // set up database connection pool
     let pool = establish_connection_pool();
 
-    HttpServer::new(move || {
-        
-        App::new()//with_state(AppState { db: addr.clone() })
+    // create http authorization check
+    //let auth = HttpAuthentication::basic(validator);
+
+    HttpServer::new( move || {
+        App::new() //with_state(AppState { db: addr.clone() })
             .data(pool.clone())
             // enable logger
             .wrap(middleware::Logger::default())
             .service(
-                web::scope("/v1/")//there is no need to have /api/v1 since NGINX is going to be redirecting us under /api anyways
-                .service(stats_get)
-             )
-            //.resource("/{name}", |r| r.method(Method::GET).a(db_index))
-            //.service(web::resource("/index.html").to(|| async { "Hello world!" }))
-            //.service(web::resource("/").to(index))
-            //.service(web::resource("/ranks").route(web::get().to(ranks_get)))
-            //.service(web::resource("/on_publish").route(web::get().to(stream_auth)))
+                web::scope("/v1/") //there is no need to have /api/ scope since NGINX is going to be redirecting us under /api anyways
+                    //.service(get_top)//gets top x ammount players /stats/top/{count}
+                    .service(web::scope("/id/").service(stats_get_by_id))
+                    .service(post_new_round),
+            )
+        //.service(web::resource("/index.html").to(|| async { "Hello world!" }))
+        //.service(web::resource("/").to(index))
     })
     .bind("127.0.0.1:1337")?
     .run()
