@@ -115,40 +115,47 @@ public int rwsSortFunction(int index1, int index2, Handle array, Handle hndl) {
   return g_aStats[client1].RWS < g_aStats[client2].RWS;
 }*/
 
-
 // this assumes there are enough players in the game (non zero) to actually reward the player with score
-pub fn calculate_rws(oldRws: f32, totalRounds: f32, wonRound: bool, roundPoints: i32, teamPoints: i32) -> f32 {
-    let roundRws = 0.0;
-  
-    let playerCount = 0;
+pub fn calculate_rws(
+    oldRws: f32,
+    totalRounds: f32,
+    wonRound: bool,
+    roundPoints: f32,
+    teamPoints: f32,
+    teamPlayerCount: f32,
+) -> f32 {
+    let mut roundRws = 0.0;
+
+    // this is required in the plugin to get the team points and playercount:
+    /*let teamPlayerCount = 0;
     let sum = 0;
     for (int i = 1; i <= MaxClients; i++) {
       if (IsPlayer(i)) {
         if (GetClientTeam(i) == GetClientTeam(client)) {
           sum += g_aStats[i].ROUND_POINTS;
-          playerCount++;
+          teamPlayerCount++;
         }
       }
-    }
+    }*/
 
-    if (teamPoints != 0 && roundPoints != 0) {
-      // scaled so it's always considered "out of 5 players" so different team sizes
-      // don't give inflated rws
-      roundRws = 100.0 * playerCount / 5.0 * roundPoints / teamPoints;
+    if (teamPoints != 0.0 && roundPoints != 0.0 && teamPlayerCount >= 1.0) {
+        // scaled so it's always considered "out of 5 players" so different team sizes
+        // don't give inflated rws
+        roundRws = 100.0 * teamPlayerCount / 5.0 * roundPoints / teamPoints;
     } else {
-      return;
+        return oldRws;
     }
     if (!wonRound) {
         // if they didn't win, give them a quarter of their contribution points instead of nothing
         roundRws = roundRws * 0.25;
     }
 
-  let alpha = GetAlphaFactor(totalRounds);
+    let alpha = GetAlphaFactor(totalRounds);
 
-  //let newRws = (1.0 - alpha) * oldRws + alpha * roundRws;
-  //newRws
-  // Calculate the new rws average using the alpha factor to speed up changes at first
-  (1.0 - alpha) * oldRws + alpha * roundRws
+    //let newRws = (1.0 - alpha) * oldRws + alpha * roundRws;
+    //newRws
+    // Calculate the new rws average using the alpha factor to speed up changes at first
+    (1.0 - alpha) * oldRws + alpha * roundRws
     // now increment the total rounds after this function, not before
 }
 

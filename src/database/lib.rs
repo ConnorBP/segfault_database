@@ -49,7 +49,7 @@ pub fn create_user<'a>(conn: &MysqlConnection, name: &'a str, steamid2: &'a str)
     diesel::insert_into(users::table)
         .values(&new_user)
         .execute(conn)
-        .expect("Error saving new post");
+        .expect("Error saving new user");
 
     users::dsl::users.order(id.desc()).first(conn).unwrap()
 }
@@ -69,11 +69,43 @@ pub fn find_user_by_id(
     Ok(user)
 }
 
+pub fn find_user_by_steam(
+    conn: &MysqlConnection,
+    _steamid: String,
+) -> Result<Option<models::User>, diesel::result::Error> {
+    use crate::schema::users::dsl::*;
 
-/// Actix Syncronous Actor Stuff
-/// ----------------------------
+    let user = users
+        .filter(steamid2.eq(_steamid))
+        .first::<models::User>(conn)
+        .optional()?;
 
-use actix::prelude::*;
+    Ok(user)
+}
+
+/// Increments the total_rounds, updates the rws value, then fetches and returns the latest values in the database
+pub fn update_newround_user_by_id(
+    conn: &MysqlConnection,
+    _id: i32,
+    newRws: f32,
+) -> Result<Option<models::User>, diesel::result::Error> {
+    use self::schema::users::dsl::{users, rounds_total, rws};
+    use self::models::*;
+    use diesel::prelude::*;
+    diesel::update(users.find(_id))
+        .set(rounds_total.eq(rounds_total + 1))
+        //.set(rws.eq(newRws))
+        .execute(conn)
+        .unwrap();
+    
+    find_user_by_id(conn, _id)
+}
+
+
+// Actix Syncronous Actor Stuff
+// ----------------------------
+
+/*use actix::prelude::*;
 use std::io::Error;
 
 struct DbExecutor(MysqlConnection);
@@ -92,4 +124,4 @@ impl Handler<NewUser<'_>> for DbExecutor {
     fn handle<'a>(&mut self, msg: NewUser, _: &mut Self::Context) -> Self::Result {
         Ok(create_user(&self.0, &msg.display_name, &msg.steamid2))
     }
-}
+}*/

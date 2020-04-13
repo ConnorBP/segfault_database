@@ -2,6 +2,8 @@
 extern crate diesel;
 extern crate dotenv;
 
+mod rws;
+
 //actix-web
 use actix_web::{
     get, http, middleware, post, web, App, Error, HttpRequest, HttpResponse, HttpServer,
@@ -9,8 +11,8 @@ use actix_web::{
 // http authentication
 use actix_web::dev::ServiceRequest;
 use actix_web_httpauth::extractors::basic::BasicAuth;
+use actix_web_httpauth::extractors::{basic, bearer, AuthenticationError};
 use actix_web_httpauth::middleware::HttpAuthentication;
-use actix_web_httpauth::extractors::{AuthenticationError, basic, bearer};
 
 use serde::{Deserialize, Serialize};
 
@@ -21,10 +23,7 @@ use sfdb_connect::*;
 use diesel::r2d2::{self, ConnectionManager};
 
 // Request Authorizor
-async fn validator(
-    req: ServiceRequest,
-    _credentials: BasicAuth,
-) -> Result<ServiceRequest, Error> {
+async fn validator(req: ServiceRequest, _credentials: BasicAuth) -> Result<ServiceRequest, Error> {
     Ok(req)
     // if (_credentials.user_id() == "dank" && _credentials.password().unwrap().to_owned() == "memes") {
     //     //let resp = req.build_response(http::StatusCode::OK).body("AUTHORIZED");
@@ -91,9 +90,49 @@ async fn put_stats() -> &'static str {
 // points are then calculated into rws and merged with existing stats
 // if successful, returns success and the newest calculated RWS value and rounds total
 // Required Inputs: auth, SteamID, round points (round count is auto incremented)
+
+#[derive(Deserialize)]
+pub struct RoundData {
+    steam_id: String,
+    did_win: bool,
+    round_points: i32,
+    team_points: i32,
+    team_count: i32,
+}
+
 #[post("/newround/")]
-async fn post_new_round() -> Result<HttpResponse, Error> {
-    Ok(HttpResponse::Ok().body("ayyo"))
+async fn post_new_round(
+    pool: web::Data<DbPool>,
+    web::Query(rd): web::Query<RoundData>,
+) -> Result<HttpResponse, Error> {
+    let conn = pool.get().expect("couldn't get db connection from pool");
+    let user = web::block(move || sfdb_connect::find_user_by_steam(&conn, rd.steam_id))
+        .await
+        .map_err(|e| {
+            eprintln!("{}", e);
+            HttpResponse::InternalServerError().finish()
+        })?;
+    if let Some(user) = user {
+        //calculate new RWS value using previous values and new points
+        let newRws = rws::calculate_rws(
+            (user.rws),
+            (user.rounds_total.clone() as f32),
+            rd.did_win,
+            (rd.round_points as f32),
+            (rd.team_points as f32),
+            (rd.team_count as f32),
+        );
+
+
+
+        Ok(HttpResponse::Ok().json(user))
+    } else {
+        Ok(HttpResponse::NotFound().body(format!("No user found with steamid: {}", rd.steam_id)))
+    }
+
+    //calculate_rws(oldRws: f32, totalRounds: f32, wonRound: bool, roundPoints: i32, teamPoints: i32) -> f32
+
+    //Ok(HttpResponse::Ok().body("ayyo"))
 }
 
 // vip api: /vip/steam/<steamid> gets vip status via steamid
@@ -110,7 +149,7 @@ async fn main() -> std::io::Result<()> {
     // create http authorization check
     //let auth = HttpAuthentication::basic(validator);
 
-    HttpServer::new( move || {
+    HttpServer::new(move || {
         App::new() //with_state(AppState { db: addr.clone() })
             .data(pool.clone())
             // enable logger
