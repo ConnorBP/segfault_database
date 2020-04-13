@@ -126,7 +126,10 @@ async fn post_new_round(
             rd.team_count as f32,
         );
 
+        // gets a second connection from the pool since the other was moved to the other thread.
+        // TODO: alternatively we could just also grab this data in that thread.... maybe i'll change this later
         let conn2 = pool.get().expect("couldn't get db connection 2 from pool");
+        // update user in db with new RWS score (rounds gets incremented automatically by this too)
         let user =
             web::block(move || sfdb_connect::update_newround_user_by_id(&conn2, user.id, newRws))
                 .await
@@ -143,12 +146,10 @@ async fn post_new_round(
         Ok(HttpResponse::NotFound().body(format!("No user found with steamid: {}", rd.steam_id)))
     }
 
-    //calculate_rws(oldRws: f32, totalRounds: f32, wonRound: bool, roundPoints: i32, teamPoints: i32) -> f32
-
-    //Ok(HttpResponse::Ok().body("ayyo"))
 }
 
 // vip api: /vip/steam/<steamid> gets vip status via steamid
+//todo
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {

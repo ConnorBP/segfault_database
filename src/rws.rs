@@ -154,12 +154,11 @@ pub fn calculate_rws(
 
     //let newRws = (1.0 - alpha) * oldRws + alpha * roundRws;
     //newRws
-    // Calculate the new rws average using the alpha factor to speed up changes at first
+   
 
     //println!("getting rws with alpha: {} old: {} rounds: {} won: {} roundpoints: {} teampoints: {} players: {}\nnew value: {} round rws: {}", alpha, oldRws, totalRounds, wonRound, roundPoints, teamPoints, teamPlayerCount, (1.0 - alpha) * oldRws + alpha * roundRws, roundRws);
-
+    // Calculate the new rws average using the alpha factor to speed up changes at first
     (1.0 - alpha) * oldRws + alpha * roundRws
-    // now increment the total rounds after this function, not before
 }
 
 fn GetAlphaFactor(rounds: f32) -> f32 {
