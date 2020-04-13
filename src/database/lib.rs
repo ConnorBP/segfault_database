@@ -93,8 +93,7 @@ pub fn update_newround_user_by_id(
     use self::models::*;
     use diesel::prelude::*;
     diesel::update(users.find(_id))
-        .set(rounds_total.eq(rounds_total + 1))
-        //.set(rws.eq(newRws))
+        .set((rws.eq(newRws), rounds_total.eq(rounds_total + 1)))
         .execute(conn)
         .unwrap();
     

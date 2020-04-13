@@ -106,7 +106,9 @@ async fn post_new_round(
     web::Query(rd): web::Query<RoundData>,
 ) -> Result<HttpResponse, Error> {
     let conn = pool.get().expect("couldn't get db connection from pool");
+    //cloning steam to new value cause for whatever reason using it moves the whole rd struct -.-
     let steam_id = rd.steam_id.clone();
+    // fetch user data from the steam id in non-blocking thread
     let user = web::block(move || sfdb_connect::find_user_by_steam(&conn, steam_id))
         .await
         .map_err(|e| {
@@ -116,17 +118,27 @@ async fn post_new_round(
     if let Some(user) = user {
         //calculate new RWS value using previous values and new points
         let newRws = rws::calculate_rws(
-            (user.rws),
-            (user.rounds_total) as f32,
+            user.rws,
+            user.rounds_total as f32,
             rd.did_win,
-            (rd.round_points) as f32,
-            (rd.team_points) as f32,
-            (rd.team_count) as f32,
+            rd.round_points as f32,
+            rd.team_points as f32,
+            rd.team_count as f32,
         );
 
-
-
-        Ok(HttpResponse::Ok().json(user))
+        let conn2 = pool.get().expect("couldn't get db connection 2 from pool");
+        let user =
+            web::block(move || sfdb_connect::update_newround_user_by_id(&conn2, user.id, newRws))
+                .await
+                .map_err(|e| {
+                    eprintln!("{}", e);
+                    HttpResponse::InternalServerError().finish()
+                })?;
+        if let Some(user) = user {
+            Ok(HttpResponse::Ok().json(user))
+        } else {
+            Ok(HttpResponse::NotFound().body(format!("Failed updating stats for user with steamid: {}", rd.steam_id)))
+        }
     } else {
         Ok(HttpResponse::NotFound().body(format!("No user found with steamid: {}", rd.steam_id)))
     }
