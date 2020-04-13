@@ -106,7 +106,8 @@ async fn post_new_round(
     web::Query(rd): web::Query<RoundData>,
 ) -> Result<HttpResponse, Error> {
     let conn = pool.get().expect("couldn't get db connection from pool");
-    let user = web::block(move || sfdb_connect::find_user_by_steam(&conn, rd.steam_id))
+    let steam_id = rd.steam_id.clone();
+    let user = web::block(move || sfdb_connect::find_user_by_steam(&conn, steam_id))
         .await
         .map_err(|e| {
             eprintln!("{}", e);
@@ -116,11 +117,11 @@ async fn post_new_round(
         //calculate new RWS value using previous values and new points
         let newRws = rws::calculate_rws(
             (user.rws),
-            (user.rounds_total.clone() as f32),
+            (user.rounds_total) as f32,
             rd.did_win,
-            (rd.round_points as f32),
-            (rd.team_points as f32),
-            (rd.team_count as f32),
+            (rd.round_points) as f32,
+            (rd.team_points) as f32,
+            (rd.team_count) as f32,
         );
 
 
