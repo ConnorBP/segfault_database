@@ -100,13 +100,17 @@ pub struct RoundData {
     team_count: i32,
 }
 
-#[post("/newround/")]
+#[post("/newround")]
 async fn post_new_round(
     pool: web::Data<DbPool>,
-    web::Query(rd): web::Query<RoundData>,
+    //web::Query(rd): web::Query<RoundData>,//GET Param Type
+    web::Form(rd): web::Form<RoundData>,//URL Encoded Form
 ) -> Result<HttpResponse, Error> {
     let conn = pool.get().expect("couldn't get db connection from pool");
     //cloning steam to new value cause for whatever reason using it moves the whole rd struct -.-
+    
+    println!("Received Data:\nsteam: {}, win: {}, points: {}, tp: {}, tc: {}", rd.steam_id, rd.did_win, rd.round_points, rd.team_points, rd.team_count);
+
     let steam_id = rd.steam_id.clone();
     // fetch user data from the steam id in non-blocking thread
     let user = web::block(move || sfdb_connect::find_user_by_steam(&conn, steam_id))
@@ -126,6 +130,8 @@ async fn post_new_round(
             rd.team_count as f32,
         );
 
+        println!("Got new RWS {}", newRws);
+
         // gets a second connection from the pool since the other was moved to the other thread.
         // TODO: alternatively we could just also grab this data in that thread.... maybe i'll change this later
         let conn2 = pool.get().expect("couldn't get db connection 2 from pool");
@@ -140,9 +146,11 @@ async fn post_new_round(
         if let Some(user) = user {
             Ok(HttpResponse::Ok().json(user))
         } else {
+            println!("Failed updating stats for user with steamid: {}", rd.steam_id);
             Ok(HttpResponse::NotFound().body(format!("Failed updating stats for user with steamid: {}", rd.steam_id)))
         }
     } else {
+        println!("No user found with steamid: {}", rd.steam_id);
         Ok(HttpResponse::NotFound().body(format!("No user found with steamid: {}", rd.steam_id)))
     }
 
