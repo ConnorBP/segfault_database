@@ -1,0 +1,9 @@
+CREATE TABLE `api_users` (
+	`user_id` INT NOT NULL AUTO_INCREMENT,
+	`username` VARCHAR(50) NOT NULL DEFAULT '-1',
+	`password` VARCHAR(50) NULL DEFAULT NULL,
+	`auth_ip` VARCHAR(16) NULL DEFAULT NULL,
+	PRIMARY KEY (`user_id`) USING BTREE
+)
+COLLATE='utf8mb4_unicode_ci'
+;

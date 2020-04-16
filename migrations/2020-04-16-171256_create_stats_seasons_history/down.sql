@@ -1,0 +1,1 @@
+DROP TABLE stats_seasons_history

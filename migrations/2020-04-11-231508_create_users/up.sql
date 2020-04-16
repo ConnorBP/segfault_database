@@ -7,3 +7,5 @@ CREATE TABLE users (
   rws FLOAT NOT NULL DEFAULT 0.0,
   rounds_total INT NOT NULL DEFAULT 0
 )
+COLLATE='utf8mb4_unicode_ci'
+;
