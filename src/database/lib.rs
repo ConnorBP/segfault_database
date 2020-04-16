@@ -3,17 +3,17 @@ extern crate diesel;
 extern crate dotenv;
 
 // database models and schemas
-pub mod schema;
 pub mod models;
+pub mod schema;
 
 //deisel db
 use diesel::prelude::*;
+use diesel::r2d2::{self, ConnectionManager};
 use dotenv::dotenv;
 use std::env;
-use diesel::r2d2::{self, ConnectionManager};
 
 // our models and schemas
-use self::models::{User, NewUser};
+use self::models::{NewUser, User};
 
 // The type for our connection pool
 pub type DbPool = r2d2::Pool<ConnectionManager<MysqlConnection>>;
@@ -36,10 +36,13 @@ pub fn establish_connection_pool() -> DbPool {
 }
 
 /// Generate a new user in the database
-pub fn create_user<'a>(conn: &MysqlConnection, name: &'a str, steamid2: &'a str) -> User {
+pub fn create_user<'a>(
+    conn: &MysqlConnection,
+    name: &'a str,
+    steamid2: &'a str,
+) -> Result<Option<models::User>, diesel::result::Error> {
     use schema::users;
     use schema::users::dsl::id;
-
 
     let new_user = NewUser {
         display_name: name,
@@ -49,9 +52,49 @@ pub fn create_user<'a>(conn: &MysqlConnection, name: &'a str, steamid2: &'a str)
     diesel::insert_into(users::table)
         .values(&new_user)
         .execute(conn)
-        .expect("Error saving new user");
+        .unwrap();
 
-    users::dsl::users.order(id.desc()).first(conn).unwrap()
+    let user = users::dsl::users
+        .order(id.desc())
+        .first::<models::User>(conn)
+        .optional()?;
+
+    Ok(user)
+}
+
+// Create a new user only if it doesn't already exist for given steam id and return the found/created users stats
+pub fn init_user<'a>(
+    conn: &MysqlConnection,
+    name: &'a str,
+    _steamid2: &'a str,
+) -> Result<models::User, diesel::result::Error> {
+    use schema::users;
+    use schema::users::dsl::{id, steamid2};
+
+    if let Some(user) = users::dsl::users
+        .filter(steamid2.eq(_steamid2))
+        .first::<models::User>(conn)
+        .optional()?
+    {
+        println!("User existed, returning.");
+        Ok(user)
+    } else {
+        println!("User didn't exist, creating a new one.");
+        let new_user = NewUser {
+            display_name: name,
+            steamid2: _steamid2,
+        };
+
+        diesel::insert_into(users::table)
+            .values(&new_user)
+            .execute(conn)
+            .unwrap();
+
+        let user = users::dsl::users
+            .order(id.desc())
+            .first::<models::User>(conn);
+        user
+    }
 }
 
 /// Run query using Diesel to insert a new database row and return the result.
@@ -89,17 +132,16 @@ pub fn update_newround_user_by_id(
     _id: i32,
     newRws: f32,
 ) -> Result<Option<models::User>, diesel::result::Error> {
-    use self::schema::users::dsl::{users, rounds_total, rws};
     use self::models::*;
+    use self::schema::users::dsl::{rounds_total, rws, users};
     use diesel::prelude::*;
     diesel::update(users.find(_id))
         .set((rws.eq(newRws), rounds_total.eq(rounds_total + 1)))
         .execute(conn)
         .unwrap();
-    
+
     find_user_by_id(conn, _id)
 }
-
 
 // Actix Syncronous Actor Stuff
 // ----------------------------

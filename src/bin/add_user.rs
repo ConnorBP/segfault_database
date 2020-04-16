@@ -26,7 +26,10 @@ fn main() {
     );
     stdin().read_to_string(&mut body).unwrap();*/
 
-    let user = create_user(&connection, name, &steam);
+    let user = create_user(&connection, name, &steam).map_err(|e| {
+        eprintln!("{}", e);
+        HttpResponse::InternalServerError().finish()
+    })?;
     println!("\nSaved user {} with id {}", name, user.id);
 }
 

@@ -86,6 +86,32 @@ async fn put_stats() -> &'static str {
     "heyooo"
 }
 
+
+#[derive(Deserialize)]
+pub struct UserInit {
+    display_name: String,
+    steam_id: String,
+}
+#[post("/userinit")]
+async fn post_user_init(
+    pool: web::Data<DbPool>,
+    web::Form(userData): web::Form<UserInit>
+) -> Result<HttpResponse, Error> {
+    let conn = pool.get().expect("couldn't get db connection from pool");
+
+    let steam_id_clone = userData.steam_id.clone();
+    let user = web::block(move || sfdb_connect::init_user(&conn, &userData.display_name, &userData.steam_id))
+                .await
+                .map_err(|e| {
+                    eprintln!("{}", e);
+                    HttpResponse::InternalServerError().finish()
+                })?;
+
+    Ok(HttpResponse::Ok().json(user))
+}
+
+
+
 // receives stats from latest round (such as round points) with steam id
 // points are then calculated into rws and merged with existing stats
 // if successful, returns success and the newest calculated RWS value and rounds total
@@ -178,8 +204,9 @@ async fn main() -> std::io::Result<()> {
             .wrap(middleware::Logger::default())
             .service(
                 web::scope("/v1/") //there is no need to have /api/ scope since NGINX is going to be redirecting us under /api anyways
-                    //.service(get_top)//gets top x ammount players /stats/top/{count}
+                    .service(post_user_init)
                     .service(web::scope("/id/").service(stats_get_by_id))
+                    //.service(get_top)//gets top x ammount players /stats/top/{count}
                     .service(post_new_round),
             )
         //.service(web::resource("/index.html").to(|| async { "Hello world!" }))
