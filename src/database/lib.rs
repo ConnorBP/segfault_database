@@ -13,7 +13,7 @@ use dotenv::dotenv;
 use std::env;
 
 // our models and schemas
-use self::models::{NewUser, User};
+use self::models::{NewUser, User, NewApiUser, ApiUser};
 
 // The type for our connection pool
 pub type DbPool = r2d2::Pool<ConnectionManager<MysqlConnection>>;
@@ -33,6 +33,35 @@ pub fn establish_connection_pool() -> DbPool {
     r2d2::Pool::builder()
         .build(manager)
         .unwrap_or_else(|_| panic!("Error creating pool with {}", connspec))
+}
+
+/// Generate a new apiuser in the database for authentication with the rest api
+pub fn create_api_user<'a>(
+    conn: &MysqlConnection,
+    username: &'a str,
+    password: &'a str,
+    ip: &'a str,
+) -> Result<Option<models::ApiUser>, diesel::result::Error> {
+    use schema::api_users;
+    use schema::api_users::dsl::user_id;
+
+    let new_api_user = NewApiUser {
+        username,
+        password,
+        auth_ip: ip,
+    };
+
+    diesel::insert_into(api_users::table)
+        .values(&new_api_user)
+        .execute(conn)
+        .unwrap();
+
+    let apiUser = api_users::dsl::api_users
+        .order(user_id.desc())
+        .first::<models::ApiUser>(conn)
+        .optional()?;
+
+    Ok(apiUser)
 }
 
 /// Generate a new user in the database

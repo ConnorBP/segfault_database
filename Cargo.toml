@@ -16,6 +16,7 @@ diesel = { version = "1.4", features = ["mysql","r2d2"] }
 r2d2 = "0.8"
 dotenv = "0.15"
 serde = "1.0"
+rpassword = "4.0"
 #envconfig = "0.8"
 #envconfig_derive = "0.8"
 
