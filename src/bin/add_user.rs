@@ -28,9 +28,13 @@ fn main() {
 
     let user = create_user(&connection, name, &steam).map_err(|e| {
         eprintln!("{}", e);
-        HttpResponse::InternalServerError().finish()
-    })?;
-    println!("\nSaved user {} with id {}", name, user.id);
+    }).unwrap();
+    
+    if let Some(user) = user {
+        println!("\n--------\nSaved user {} with id {}", name, user.id);
+    } else {
+        println!("Error Creating new user!");
+    }
 }
 
 //#[cfg(not(windows))]
