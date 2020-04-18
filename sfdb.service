@@ -1,0 +1,18 @@
+[Unit]
+Description=Segfault Database Api Server
+Documentation=https://segfault.club
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Environment=SFDB_API_PORT=1337
+Type=forking
+User=sfdb
+WorkingDirectory=/home/sfdb
+ExecStart=/home/sfdb/sfdb_server start
+ExecStop=/home/sfdb/sfdb_server stop
+Restart=no
+RemainAfterExit=yes   #Assume that the service is running after main process exits with code 0
+
+[Install]
+WantedBy=multi-user.target

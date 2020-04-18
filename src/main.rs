@@ -191,6 +191,28 @@ async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "actix_web=info");
     env_logger::init();
 
+    if let Some(action) = std::env::args().nth(1) {
+        let res = match action.to_lowercase().as_str() {
+            "start" => start().await,
+            "stop" => stop(),
+            "monitor" => {
+                Ok(())
+            },
+            "help" => {
+                println!("Arg Commands:\nstart   | starts the server\nstop    | stops the server\nmonitor | checks the server status and reboots it if it crashed or is unresponsive");
+                Ok(())
+            },
+            _ => {
+                panic!("Invalid command argument! Availible include: start, stop, monitor");
+            },
+        };
+        return res;
+    } else {
+        panic!("No argument supplied! Commands include: start, stop, monitor");
+    }
+}
+
+async fn start() -> std::io::Result<()> {
     // set up database connection pool
     let pool = establish_connection_pool();
 
@@ -217,7 +239,11 @@ async fn main() -> std::io::Result<()> {
     .await
 }
 
-//TODO: Update tests to test API
+fn stop() -> std::io::Result<()> {
+    Ok(())
+}
+
+//TODO: Update tests to reliably test current API functions
 #[cfg(test)]
 mod tests {
     use super::*;
