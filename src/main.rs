@@ -147,33 +147,36 @@ async fn post_new_round(
         })?;
     if let Some(user) = user {
         //calculate new RWS value using previous values and new points
-        let newRws = rws::calculate_rws(
+        if let Some(newRws) = rws::calculate_rws(
             user.rws,
             user.rounds_total as f32,
             rd.did_win,
             rd.round_points as f32,
             rd.team_points as f32,
             rd.team_count as f32,
-        );
+        ) {
+            println!("Got new RWS {}", newRws);
 
-        println!("Got new RWS {}", newRws);
-
-        // gets a second connection from the pool since the other was moved to the other thread.
-        // TODO: alternatively we could just also grab this data in that thread.... maybe i'll change this later
-        let conn2 = pool.get().expect("couldn't get db connection 2 from pool");
-        // update user in db with new RWS score (rounds gets incremented automatically by this too)
-        let user =
-            web::block(move || sfdb_connect::update_newround_user_by_id(&conn2, user.id, newRws))
-                .await
-                .map_err(|e| {
-                    eprintln!("{}", e);
-                    HttpResponse::InternalServerError().finish()
-                })?;
-        if let Some(user) = user {
-            Ok(HttpResponse::Ok().json(user))
+            // gets a second connection from the pool since the other was moved to the other thread.
+            // TODO: alternatively we could just also grab this data in that thread.... maybe i'll change this later
+            let conn2 = pool.get().expect("couldn't get db connection 2 from pool");
+            // update user in db with new RWS score (rounds gets incremented automatically by this too)
+            let user =
+                web::block(move || sfdb_connect::update_newround_user_by_id(&conn2, user.id, newRws))
+                    .await
+                    .map_err(|e| {
+                        eprintln!("{}", e);
+                        HttpResponse::InternalServerError().finish()
+                    })?;
+            if let Some(user) = user {
+                Ok(HttpResponse::Ok().json(user))
+            } else {
+                println!("Failed updating stats for user with steamid: {}", rd.steam_id);
+                Ok(HttpResponse::NotFound().body(format!("Failed updating stats for user with steamid: {}", rd.steam_id)))
+            }
         } else {
-            println!("Failed updating stats for user with steamid: {}", rd.steam_id);
-            Ok(HttpResponse::NotFound().body(format!("Failed updating stats for user with steamid: {}", rd.steam_id)))
+            println!("There was an issue calculating RWS for user with steamid: {}\nErrored Stats: RWS{},RT{},W{},RP{},TP{},TC{}", rd.steam_id, user.rws,user.rounds_total,rd.did_win,rd.round_points,rd.team_points,rd.team_count);
+            Ok(HttpResponse::BadRequest().body(format!("Invalid values submitted for user with steamid: {}", rd.steam_id)))
         }
     } else {
         println!("No user found with steamid: {}", rd.steam_id);

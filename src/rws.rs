@@ -20,101 +20,21 @@
 */
 
 //  how fast should the average move at zero rounds played
-static ALPHA_INIT: f32 = 0.1;
+static ALPHA_INIT: f32 = 0.2;
 //  final ammount of changing after rounds final reached
 static ALPHA_FINAL: f32 = 0.003;
 // How many rounds will averages change fast for
 static ROUNDS_FINAL: f32 = 250.0;
 
-/*
-Event_RoundEnd() {
-    int winner = event.GetInt("winner");
-    for (int i = 1; i <= MaxClients; i++) {
-        if (IsPlayer(i) && IsOnDb(i)) {
-            int team = GetClientTeam(i);
-            if (team == CS_TEAM_CT || team == CS_TEAM_T){RWSUpdate(i, team == winner);}
-        }
-    }
-    for (int i = 1; i <= MaxClients; i++) {
-        if (IsPlayer(i) && IsOnDb(i)) {
-            g_aStats[i].ROUND_POINTS = 0;
-            SavePlayerData(i);
-        }
-    }
-}
+// RWS Scale factor
+// The base value we want our "average player" to sit at
+static RWS_BASE: f32 = 10.0; // original would have been 20 
+// value to use in our calculation (don't change this):
+static RWS_SCALE: f32 = RWS_BASE * 5.0; // becomes 50 (halves the ammount of rws given from the original 100)
 
 /**
  * Here we apply magic updates to a player's rws based on the previous round.
  */
-static void RWSUpdate(int client, bool winner) {
-  float rws = 0.0;
-  if (winner) {
-    int playerCount = 0;
-    int sum = 0;
-    for (int i = 1; i <= MaxClients; i++) {
-      if (IsPlayer(i)) {
-        if (GetClientTeam(i) == GetClientTeam(client)) {
-          sum += g_aStats[i].ROUND_POINTS;
-          playerCount++;
-        }
-      }
-    }
-
-    if (sum != 0) {
-      // scaled so it's always considered "out of 5 players" so different team sizes
-      // don't give inflated rws
-      rws = 100.0 * float(playerCount) / 5.0 * float(g_aStats[client].ROUND_POINTS) / float(sum);
-    } else {
-      return;
-    }
-
-  } else {
-    rws = 0.0;
-  }
-
-  float alpha = GetAlphaFactor(client);
-  g_aStats[client].RWS = (1.0 - alpha) * g_aStats[client].RWS + alpha * rws;
-  g_aStats[client].ROUNDS_TOTAL++;
-  LogDebug("RoundUpdate(%L), alpha=%f, round_rws=%f, new_rws=%f", client, alpha, rws,
-           g_aStats[client].RWS);
-}
-
-
-
-// some utils (TODO MOVE THIS TO UTIL FILE)
-
-public bool IsOnDb(int client) {
-  return OnDB[client];
-}
-
-// Re-Usable checks for wether or not we should rank players right now
-bool ShouldRank() {
-    // ranks should be calculated if it is not warmup, and there are at least the min player count (2 by default)
-    // TODO: add check for if ranking is by round or by match either here or somewhere else
-    return !CheckIfWarmup() && g_MinimumPlayers > GetCurrentPlayers();
-}
-
-// returns true if it is currently the warmup period
-bool CheckIfWarmup() {
-    return GameRules_GetProp("m_bWarmupPeriod") == 1;
-}
-
-
-static float GetAlphaFactor(int client) {
-  float rounds = float(g_aStats[client].ROUNDS_TOTAL);
-  if (rounds < ROUNDS_FINAL) {
-    return ALPHA_INIT + (ALPHA_INIT - ALPHA_FINAL) / (-ROUNDS_FINAL) * rounds;
-  } else {
-    return ALPHA_FINAL;
-  }
-}
-
-public int rwsSortFunction(int index1, int index2, Handle array, Handle hndl) {
-  int client1 = GetArrayCell(array, index1);
-  int client2 = GetArrayCell(array, index2);
-  return g_aStats[client1].RWS < g_aStats[client2].RWS;
-}*/
-
 // this assumes there are enough players in the game (non zero) to actually reward the player with score
 pub fn calculate_rws(
     oldRws: f32,
@@ -123,7 +43,7 @@ pub fn calculate_rws(
     roundPoints: f32,
     teamPoints: f32,
     teamPlayerCount: f32,
-) -> f32 {
+) -> Option<f32> {
     let mut roundRws = 0.0;
 
     // this is required in the plugin to get the team points and playercount:
@@ -138,12 +58,33 @@ pub fn calculate_rws(
       }
     }*/
 
-    if (teamPoints != 0.0 && roundPoints != 0.0 && teamPlayerCount >= 1.0) {
-        // scaled so it's always considered "out of 5 players" so different team sizes
-        // don't give inflated rws
-        roundRws = 100.0 * teamPlayerCount / 5.0 * roundPoints / teamPoints;
+    // run some safety checks to avoid overwriting users with a bad calculation
+
+    // basically checking for zero
+    if (teamPlayerCount < 0.9) {
+      // if this is called with less than one player it was an erronous call
+      println!("warning! calculate RWS was called with no players in teamPlayerCount.");
+      // return NONE to avoid overwriting any existing values with a possibly erronous one
+      return None;
+    }
+
+    if (teamPoints < roundPoints) {
+      // The team total should never be less than the one users points
+      println!("warning! calculate RWS was called with less team points than round points.");
+      return None;
+    }
+
+    if (teamPoints > 0.0 && roundPoints > 0.0) {
+        // scaled so it's always considered "out of 5 players" so different team sizes don't give inflated rws
+        // If all 5 players do 100 dammage to 5 other players, we want to score them all as 10rws
+        // 10 is where we want our base level of contribution to be set, but 100 / 5 is 20 it is at 20
+        // old calculation: roundRws = 100.0 * teamPlayerCount / 5.0 * roundPoints / teamPoints;
+
+        roundRws = RWS_SCALE * teamPlayerCount / 5.0 * roundPoints / teamPoints;
+
     } else {
-        return oldRws;
+      // if team or round points are zero,
+      roundRws = 0.0;
     }
     if (!wonRound) {
         // if they didn't win, give them a quarter of their contribution points instead of nothing
@@ -158,7 +99,7 @@ pub fn calculate_rws(
 
     //println!("getting rws with alpha: {} old: {} rounds: {} won: {} roundpoints: {} teampoints: {} players: {}\nnew value: {} round rws: {}", alpha, oldRws, totalRounds, wonRound, roundPoints, teamPoints, teamPlayerCount, (1.0 - alpha) * oldRws + alpha * roundRws, roundRws);
     // Calculate the new rws average using the alpha factor to speed up changes at first
-    (1.0 - alpha) * oldRws + alpha * roundRws
+    Some((1.0 - alpha) * oldRws + alpha * roundRws)
 }
 
 fn GetAlphaFactor(rounds: f32) -> f32 {
