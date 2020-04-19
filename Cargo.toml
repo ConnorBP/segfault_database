@@ -1,6 +1,6 @@
 [package]
 name = "segfault_database"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Connor <connor.postma@gmail.com>"]
 edition = "2018"
 
