@@ -33,9 +33,10 @@ async fn validator(req: ServiceRequest, _credentials: BasicAuth) -> Result<Servi
     // }
 }
 
-async fn index(req: HttpRequest) -> &'static str {
-    println!("REQ: {:?}", req);
-    "Hello world!"
+// check if the api server is live (doesn't check the database)
+async fn check(req: HttpRequest) -> &'static str {
+    println!("Got check REQ: {:?}", req);
+    "live"
 }
 
 #[derive(Deserialize)]
@@ -235,7 +236,7 @@ async fn start() -> std::io::Result<()> {
                     .service(post_new_round),
             )
         //.service(web::resource("/index.html").to(|| async { "Hello world!" }))
-        //.service(web::resource("/").to(index))
+        .service(web::resource("/").to(check))
     })
     .bind("127.0.0.1:1337")?
     .run()
