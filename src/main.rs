@@ -125,6 +125,8 @@ pub struct RoundData {
     round_points: i32,
     team_points: i32,
     team_count: i32,
+    total_points: i32,
+    total_count: i32,
 }
 
 #[post("/newround")]
@@ -136,7 +138,7 @@ async fn post_new_round(
     let conn = pool.get().expect("couldn't get db connection from pool");
     //cloning steam to new value cause for whatever reason using it moves the whole rd struct -.-
     
-    println!("Received Data:\nsteam: {}, win: {}, points: {}, tp: {}, tc: {}", rd.steam_id, rd.did_win, rd.round_points, rd.team_points, rd.team_count);
+    println!("Received Data:\nsteam: {}, win: {}, points: {}, tp: {}, tc: {}, totalp:{}, totalc{}", rd.steam_id, rd.did_win, rd.round_points, rd.team_points, rd.team_count, rd.total_points, rd.total_count);
 
     let steam_id = rd.steam_id.clone();
     // fetch user data from the steam id in non-blocking thread
@@ -155,6 +157,8 @@ async fn post_new_round(
             rd.round_points as f32,
             rd.team_points as f32,
             rd.team_count as f32,
+            rd.total_points as f32,
+            rd.total_count as f32,
         ) {
             println!("Got new RWS {}", newRws);
 
