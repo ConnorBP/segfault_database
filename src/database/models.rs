@@ -1,6 +1,8 @@
 use serde::{Serialize, Deserialize};
-use super::schema::{users, api_users};
-use chrono::NaiveDateTime;
+use super::schema::{users, api_users, discord_users_blacklist};
+use chrono;
+use chrono::prelude::*;
+//diesel::mysql::types::Datetime;
 
 // Users DB Models
 
@@ -42,19 +44,22 @@ pub struct NewApiUser<'a> {
 
 // Discord users blacklist
 
-pub struct DiscordBlacklistUser<'a> {
+#[derive(Queryable, Serialize, Deserialize)]
+pub struct DiscordBlacklistUser {
     pub id: i32,
-    pub discord_userid: &'a str,
-    pub discord_id: u64,
-    pub added_by_id: u64,
-    pub guild_id: Option<u64>,//null means its a global blacklist (only owner can add these)
-    pub dt_created: Option<NaiveDateTime>,
-    pub dt_modified: Option<NaiveDateTime>,
+    pub discord_userid: String,
+    pub discord_id: i64,
+    pub added_by_id: i64,
+    pub guild_id: Option<i64>,//null means its a global blacklist (only owner can add these)
+    pub dt_created: Option<chrono::NaiveDateTime>,
+    pub dt_modified: Option<chrono::NaiveDateTime>,
 }
 
+#[derive(Insertable)]
+#[table_name="discord_users_blacklist"]
 pub struct NewDiscordBlacklistUser<'a> {
     pub discord_userid: &'a str,
-    pub discord_id: u64,
-    pub added_by_id: u64,
-    pub guild_id: Option<u64>,
+    pub discord_id: i64,
+    pub added_by_id: i64,
+    pub guild_id: Option<i64>,
 }

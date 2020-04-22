@@ -11,9 +11,10 @@ use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager};
 use dotenv::dotenv;
 use std::env;
+use chrono::NaiveDateTime;
 
 // our models and schemas
-use self::models::{NewUser, User, NewApiUser, ApiUser};
+use self::models::{NewUser, User, NewApiUser, ApiUser, DiscordBlacklistUser, NewDiscordBlacklistUser};
 
 // The type for our connection pool
 pub type DbPool = r2d2::Pool<ConnectionManager<MysqlConnection>>;
@@ -172,26 +173,33 @@ pub fn update_newround_user_by_id(
     find_user_by_id(conn, _id)
 }
 
-// Actix Syncronous Actor Stuff
-// ----------------------------
+/// Generate a new user in the database
+pub fn create_discord_blacklist_user<'a>(
+    conn: &MysqlConnection,
+    discord_userid: &'a str,
+    discord_id: i64,
+    added_by_id: i64,
+    guild_id: Option<i64>,
+) -> Result<Option<models::DiscordBlacklistUser>, diesel::result::Error> {
+    use schema::discord_users_blacklist;
+    use schema::discord_users_blacklist::dsl::id;
 
-/*use actix::prelude::*;
-use std::io::Error;
+    let new_blacklist = NewDiscordBlacklistUser {
+        discord_userid,
+        discord_id,
+        added_by_id,
+        guild_id,
+    };
 
-struct DbExecutor(MysqlConnection);
+    diesel::insert_into(discord_users_blacklist::table)
+        .values(&new_blacklist)
+        .execute(conn)
+        .unwrap();
 
-impl Actor for DbExecutor {
-    type Context = SyncContext<Self>;
+    let bluser = discord_users_blacklist::dsl::discord_users_blacklist
+        .order(id.desc())
+        .first::<models::DiscordBlacklistUser>(conn)
+        .optional()?;
+
+    Ok(bluser)
 }
-
-impl Message for NewUser<'_> {
-    type Result = Result<User, Error>;
-}
-
-impl Handler<NewUser<'_>> for DbExecutor {
-    type Result = Result<User, Error>;
-
-    fn handle<'a>(&mut self, msg: NewUser, _: &mut Self::Context) -> Self::Result {
-        Ok(create_user(&self.0, &msg.display_name, &msg.steamid2))
-    }
-}*/
