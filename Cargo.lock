@@ -554,6 +554,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33d7ca63eb2efea87a7f56a283acc49e2ce4b2bd54adf7465dc1d81fef13d8fc"
 dependencies = [
  "byteorder",
+ "chrono",
  "diesel_derives",
  "mysqlclient-sys",
  "percent-encoding",
@@ -1331,12 +1332,13 @@ checksum = "b42e15e59b18a828bbf5c58ea01debb36b9b096346de35d941dcb89009f24a0d"
 
 [[package]]
 name = "segfault_database"
-version = "1.0.1"
+version = "1.2.1"
 dependencies = [
  "actix",
  "actix-rt",
  "actix-web",
  "actix-web-httpauth",
+ "chrono",
  "diesel",
  "dotenv",
  "env_logger",

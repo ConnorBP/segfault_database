@@ -1,5 +1,6 @@
 use serde::{Serialize, Deserialize};
 use super::schema::{users, api_users};
+use chrono::NaiveDateTime;
 
 // Users DB Models
 
@@ -37,4 +38,23 @@ pub struct NewApiUser<'a> {
     pub username: &'a str,
     pub password: &'a str,
     pub auth_ip: &'a str,
+}
+
+// Discord users blacklist
+
+pub struct DiscordBlacklistUser<'a> {
+    pub id: i32,
+    pub discord_userid: &'a str,
+    pub discord_id: u64,
+    pub added_by_id: u64,
+    pub guild_id: Option<u64>,//null means its a global blacklist (only owner can add these)
+    pub dt_created: Option<NaiveDateTime>,
+    pub dt_modified: Option<NaiveDateTime>,
+}
+
+pub struct NewDiscordBlacklistUser<'a> {
+    pub discord_userid: &'a str,
+    pub discord_id: u64,
+    pub added_by_id: u64,
+    pub guild_id: Option<u64>,
 }
