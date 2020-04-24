@@ -1,7 +1,7 @@
 use super::schema::{api_users, discord_users_blacklist, users};
 use chrono;
 use chrono::prelude::*;
-use diesel::sql_types::{BigInt, Float, Integer};
+use diesel::sql_types::{BigInt, Float, Integer, VarChar};
 use serde::{Deserialize, Serialize};
 
 // Users DB Models
@@ -72,4 +72,18 @@ pub struct UserIdRank {
     pub rank: i64,
     #[sql_type = "Float"]
     pub rws: f32,
+}
+
+#[derive(QueryableByName, Serialize, Deserialize)]
+pub struct LeaderBoardUser {
+    #[sql_type = "Integer"]
+    pub id: i32,
+    #[sql_type = "BigInt"]
+    pub rank: i64,
+    #[sql_type = "Float"]
+    pub rws: f32,
+    #[sql_type = "Integer"]
+    pub rounds_total: i32,
+    #[sql_type = "VarChar"]
+    pub display_name: String,
 }

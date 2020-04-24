@@ -228,3 +228,15 @@ pub fn get_rank_by_id(
             },
         }
 }
+
+pub fn get_leaderboard(
+    conn: &MysqlConnection,
+    min_rounds_played: i32,
+) -> Result<Vec<models::LeaderBoardUser>, diesel::result::Error> {
+    use diesel::sql_query;
+    sql_query(format!(
+        include_str!("./sql/leaderboard.sql"),
+        min_rounds_played, min_rounds_played
+    ))
+    .load::<models::LeaderBoardUser>(conn)
+}

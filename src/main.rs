@@ -100,14 +100,30 @@ async fn rank_get_by_id(
     }
 }
 
-// sends data, expects it to be handled
-async fn post_stats() -> &'static str {
-    "yote"
-}
+#[get("/leaderboard/{minrounds}")]
+async fn get_leaderboard(
+    pool: web::Data<DbPool>,
+    minrounds: web::Path<i32>,
+) -> Result<HttpResponse, Error> {
+    let minrounds = minrounds.into_inner();
+    let conn = pool.get().expect("couldn't get db connection from pool");
+    // use web::block to offload blocking Diesel code without blocking server thread
+    let leaderboard_data = web::block(move || sfdb_connect::get_leaderboard(&conn, minrounds))
+        .await
+        .map_err(|e| {
+            eprintln!("{}", e);
+            HttpResponse::InternalServerError().finish()
+        })?;
 
-// put will create if not exists or replace if does exist
-async fn put_stats() -> &'static str {
-    "heyooo"
+    if leaderboard_data.is_empty() {
+        let res = HttpResponse::NotFound().body(format!(
+            "Leaderboard with minimum rounds: {} was empty.",
+            minrounds
+        ));
+        Ok(res)
+    } else {
+        Ok(HttpResponse::Ok().json(leaderboard_data))
+    }
 }
 
 #[derive(Deserialize)]
@@ -278,6 +294,7 @@ async fn start() -> std::io::Result<()> {
                             .service(stats_get_by_id)
                             .service(rank_get_by_id),
                     )
+                    .service(get_leaderboard)
                     //.service(get_top)//gets top x ammount players /stats/top/{count}
                     .service(post_new_round),
             )
