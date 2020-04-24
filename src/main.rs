@@ -77,6 +77,29 @@ async fn stats_get_by_id(
     }
 }
 
+#[get("/rank/{id}")]
+async fn rank_get_by_id(
+    pool: web::Data<DbPool>,
+    id: web::Path<i32>,
+) -> Result<HttpResponse, Error> {
+    let id = id.into_inner();
+    let conn = pool.get().expect("couldn't get db connection from pool");
+    // use web::block to offload blocking Diesel code without blocking server thread
+    let rank_data = web::block(move || sfdb_connect::get_rank_by_id(&conn, id))
+        .await
+        .map_err(|e| {
+            eprintln!("{}", e);
+            HttpResponse::InternalServerError().finish()
+        })?;
+
+    if let Some(rank_data) = rank_data {
+        Ok(HttpResponse::Ok().json(rank_data))
+    } else {
+        let res = HttpResponse::NotFound().body(format!("No user found with id: {}", id));
+        Ok(res)
+    }
+}
+
 // sends data, expects it to be handled
 async fn post_stats() -> &'static str {
     "yote"
@@ -87,7 +110,6 @@ async fn put_stats() -> &'static str {
     "heyooo"
 }
 
-
 #[derive(Deserialize)]
 pub struct UserInit {
     display_name: String,
@@ -96,22 +118,22 @@ pub struct UserInit {
 #[post("/userinit")]
 async fn post_user_init(
     pool: web::Data<DbPool>,
-    web::Form(userData): web::Form<UserInit>
+    web::Form(userData): web::Form<UserInit>,
 ) -> Result<HttpResponse, Error> {
     let conn = pool.get().expect("couldn't get db connection from pool");
 
     let steam_id_clone = userData.steam_id.clone();
-    let user = web::block(move || sfdb_connect::init_user(&conn, &userData.display_name, &userData.steam_id))
-                .await
-                .map_err(|e| {
-                    eprintln!("{}", e);
-                    HttpResponse::InternalServerError().finish()
-                })?;
+    let user = web::block(move || {
+        sfdb_connect::init_user(&conn, &userData.display_name, &userData.steam_id)
+    })
+    .await
+    .map_err(|e| {
+        eprintln!("{}", e);
+        HttpResponse::InternalServerError().finish()
+    })?;
 
     Ok(HttpResponse::Ok().json(user))
 }
-
-
 
 // receives stats from latest round (such as round points) with steam id
 // points are then calculated into rws and merged with existing stats
@@ -133,12 +155,21 @@ pub struct RoundData {
 async fn post_new_round(
     pool: web::Data<DbPool>,
     //web::Query(rd): web::Query<RoundData>,//GET Param Type
-    web::Form(rd): web::Form<RoundData>,//URL Encoded Form
+    web::Form(rd): web::Form<RoundData>, //URL Encoded Form
 ) -> Result<HttpResponse, Error> {
     let conn = pool.get().expect("couldn't get db connection from pool");
     //cloning steam to new value cause for whatever reason using it moves the whole rd struct -.-
-    
-    println!("Received Data:\nsteam: {}, win: {}, points: {}, tp: {}, tc: {}, totalp:{}, totalc{}", rd.steam_id, rd.did_win, rd.round_points, rd.team_points, rd.team_count, rd.total_points, rd.total_count);
+
+    println!(
+        "Received Data:\nsteam: {}, win: {}, points: {}, tp: {}, tc: {}, totalp:{}, totalc{}",
+        rd.steam_id,
+        rd.did_win,
+        rd.round_points,
+        rd.team_points,
+        rd.team_count,
+        rd.total_points,
+        rd.total_count
+    );
 
     let steam_id = rd.steam_id.clone();
     // fetch user data from the steam id in non-blocking thread
@@ -166,28 +197,37 @@ async fn post_new_round(
             // TODO: alternatively we could just also grab this data in that thread.... maybe i'll change this later
             let conn2 = pool.get().expect("couldn't get db connection 2 from pool");
             // update user in db with new RWS score (rounds gets incremented automatically by this too)
-            let user =
-                web::block(move || sfdb_connect::update_newround_user_by_id(&conn2, user.id, newRws))
-                    .await
-                    .map_err(|e| {
-                        eprintln!("{}", e);
-                        HttpResponse::InternalServerError().finish()
-                    })?;
+            let user = web::block(move || {
+                sfdb_connect::update_newround_user_by_id(&conn2, user.id, newRws)
+            })
+            .await
+            .map_err(|e| {
+                eprintln!("{}", e);
+                HttpResponse::InternalServerError().finish()
+            })?;
             if let Some(user) = user {
                 Ok(HttpResponse::Ok().json(user))
             } else {
-                println!("Failed updating stats for user with steamid: {}", rd.steam_id);
-                Ok(HttpResponse::NotFound().body(format!("Failed updating stats for user with steamid: {}", rd.steam_id)))
+                println!(
+                    "Failed updating stats for user with steamid: {}",
+                    rd.steam_id
+                );
+                Ok(HttpResponse::NotFound().body(format!(
+                    "Failed updating stats for user with steamid: {}",
+                    rd.steam_id
+                )))
             }
         } else {
             println!("There was an issue calculating RWS for user with steamid: {}\nErrored Stats: RWS{},RT{},W{},RP{},TP{},TC{}", rd.steam_id, user.rws,user.rounds_total,rd.did_win,rd.round_points,rd.team_points,rd.team_count);
-            Ok(HttpResponse::BadRequest().body(format!("Invalid values submitted for user with steamid: {}", rd.steam_id)))
+            Ok(HttpResponse::BadRequest().body(format!(
+                "Invalid values submitted for user with steamid: {}",
+                rd.steam_id
+            )))
         }
     } else {
         println!("No user found with steamid: {}", rd.steam_id);
         Ok(HttpResponse::NotFound().body(format!("No user found with steamid: {}", rd.steam_id)))
     }
-
 }
 
 // vip api: /vip/steam/<steamid> gets vip status via steamid
@@ -203,16 +243,14 @@ async fn main() -> std::io::Result<()> {
         let res = match action.to_lowercase().as_str() {
             "start" => start().await,
             "stop" => stop(),
-            "monitor" => {
-                Ok(())
-            },
+            "monitor" => Ok(()),
             "help" => {
                 println!("Arg Commands:\nstart   | starts the server\nstop    | stops the server\nmonitor | checks the server status and reboots it if it crashed or is unresponsive");
                 Ok(())
-            },
+            }
             _ => {
                 panic!("Invalid command argument! Availible include: start, stop, monitor");
-            },
+            }
         };
         return res;
     } else {
@@ -235,12 +273,16 @@ async fn start() -> std::io::Result<()> {
             .service(
                 web::scope("/v1/") //there is no need to have /api/ scope since NGINX is going to be redirecting us under /api anyways
                     .service(post_user_init)
-                    .service(web::scope("/id/").service(stats_get_by_id))
+                    .service(
+                        web::scope("/id/")
+                            .service(stats_get_by_id)
+                            .service(rank_get_by_id),
+                    )
                     //.service(get_top)//gets top x ammount players /stats/top/{count}
                     .service(post_new_round),
             )
-        //.service(web::resource("/index.html").to(|| async { "Hello world!" }))
-        .service(web::resource("/").to(check))
+            //.service(web::resource("/index.html").to(|| async { "Hello world!" }))
+            .service(web::resource("/").to(check))
     })
     .bind("127.0.0.1:1337")?
     .run()

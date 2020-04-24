@@ -1,8 +1,8 @@
-use serde::{Serialize, Deserialize};
-use super::schema::{users, api_users, discord_users_blacklist};
+use super::schema::{api_users, discord_users_blacklist, users};
 use chrono;
 use chrono::prelude::*;
-//diesel::mysql::types::Datetime;
+use diesel::sql_types::{BigInt, Float, Integer};
+use serde::{Deserialize, Serialize};
 
 // Users DB Models
 
@@ -18,7 +18,7 @@ pub struct User {
 }
 
 #[derive(Insertable)]
-#[table_name="users"]
+#[table_name = "users"]
 pub struct NewUser<'a> {
     pub display_name: &'a str,
     pub steamid2: &'a str,
@@ -35,7 +35,7 @@ pub struct ApiUser {
 }
 
 #[derive(Insertable)]
-#[table_name="api_users"]
+#[table_name = "api_users"]
 pub struct NewApiUser<'a> {
     pub username: &'a str,
     pub password: &'a str,
@@ -50,16 +50,26 @@ pub struct DiscordBlacklistUser {
     pub discord_userid: String,
     pub discord_id: i64,
     pub added_by_id: i64,
-    pub guild_id: Option<i64>,//null means its a global blacklist (only owner can add these)
+    pub guild_id: Option<i64>, //null means its a global blacklist (only owner can add these)
     pub dt_created: Option<chrono::NaiveDateTime>,
     pub dt_modified: Option<chrono::NaiveDateTime>,
 }
 
 #[derive(Insertable)]
-#[table_name="discord_users_blacklist"]
+#[table_name = "discord_users_blacklist"]
 pub struct NewDiscordBlacklistUser<'a> {
     pub discord_userid: &'a str,
     pub discord_id: i64,
     pub added_by_id: i64,
     pub guild_id: Option<i64>,
+}
+
+#[derive(QueryableByName, Serialize, Deserialize, Copy, Clone)]
+pub struct UserIdRank {
+    #[sql_type = "Integer"]
+    pub id: i32,
+    #[sql_type = "BigInt"]
+    pub rank: i64,
+    #[sql_type = "Float"]
+    pub rws: f32,
 }

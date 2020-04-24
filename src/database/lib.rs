@@ -7,14 +7,16 @@ pub mod models;
 pub mod schema;
 
 //deisel db
+use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager};
 use dotenv::dotenv;
 use std::env;
-use chrono::NaiveDateTime;
 
 // our models and schemas
-use self::models::{NewUser, User, NewApiUser, ApiUser, DiscordBlacklistUser, NewDiscordBlacklistUser};
+use self::models::{
+    ApiUser, DiscordBlacklistUser, NewApiUser, NewDiscordBlacklistUser, NewUser, User,
+};
 
 // The type for our connection pool
 pub type DbPool = r2d2::Pool<ConnectionManager<MysqlConnection>>;
@@ -202,4 +204,27 @@ pub fn create_discord_blacklist_user<'a>(
         .optional()?;
 
     Ok(bluser)
+}
+
+pub fn get_rank_by_id(
+    conn: &MysqlConnection,
+    _id: i32,
+) -> Result<Option<models::UserIdRank>, diesel::result::Error> {
+    use diesel::sql_query;
+
+    match sql_query(format!("SELECT `id`, (SELECT COUNT(*) FROM users WHERE `rws` >= (SELECT `rws` FROM users WHERE `id` = {})) AS `rank`, `rws` FROM users WHERE `id` = {}", _id, _id))
+        .load::<models::UserIdRank>(conn)
+        {
+
+            Ok(rank_vec) => {
+                if let Some(user_data) = rank_vec.first() {
+                    Ok(Some(*user_data))
+                } else {
+                    Ok(None)
+                }
+            },
+            Err(x) => {
+                Err(x)
+            },
+        }
 }
