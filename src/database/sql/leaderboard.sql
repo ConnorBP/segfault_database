@@ -6,3 +6,4 @@ FROM users WHERE `rounds_total` > {} )
 FROM users
 WHERE `rounds_total` > {}
 ORDER BY `rank`
+LIMIT {}

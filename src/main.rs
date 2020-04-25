@@ -85,7 +85,8 @@ async fn rank_get_by_id(
     let id = id.into_inner();
     let conn = pool.get().expect("couldn't get db connection from pool");
     // use web::block to offload blocking Diesel code without blocking server thread
-    let rank_data = web::block(move || sfdb_connect::get_rank_by_id(&conn, id))
+    let minrounds = 100;
+    let rank_data = web::block(move || sfdb_connect::get_rank_by_id(&conn, id, minrounds))
         .await
         .map_err(|e| {
             eprintln!("{}", e);
@@ -100,25 +101,27 @@ async fn rank_get_by_id(
     }
 }
 
-#[get("/leaderboard/{minrounds}")]
+#[get("/leaderboard/{limit}")]
 async fn get_leaderboard(
     pool: web::Data<DbPool>,
-    minrounds: web::Path<i32>,
+    limit: web::Path<i32>,
 ) -> Result<HttpResponse, Error> {
-    let minrounds = minrounds.into_inner();
+    let limit = limit.into_inner();
+    let minrounds = 100;
     let conn = pool.get().expect("couldn't get db connection from pool");
     // use web::block to offload blocking Diesel code without blocking server thread
-    let leaderboard_data = web::block(move || sfdb_connect::get_leaderboard(&conn, minrounds))
-        .await
-        .map_err(|e| {
-            eprintln!("{}", e);
-            HttpResponse::InternalServerError().finish()
-        })?;
+    let leaderboard_data =
+        web::block(move || sfdb_connect::get_leaderboard(&conn, minrounds, limit))
+            .await
+            .map_err(|e| {
+                eprintln!("{}", e);
+                HttpResponse::InternalServerError().finish()
+            })?;
 
     if leaderboard_data.is_empty() {
         let res = HttpResponse::NotFound().body(format!(
-            "Leaderboard with minimum rounds: {} was empty.",
-            minrounds
+            "Leaderboard with minimum rounds: {} and max results: {} was empty.",
+            minrounds, limit,
         ));
         Ok(res)
     } else {

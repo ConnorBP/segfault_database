@@ -1,0 +1,1 @@
+SELECT `id`, (SELECT COUNT(*) FROM users WHERE `rounds_total` > {} AND `rws` >= (SELECT `rws` FROM users WHERE `id` = {})) AS `rank`, `rws` FROM users WHERE `id` = {}

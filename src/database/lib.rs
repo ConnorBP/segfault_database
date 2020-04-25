@@ -208,35 +208,37 @@ pub fn create_discord_blacklist_user<'a>(
 
 pub fn get_rank_by_id(
     conn: &MysqlConnection,
-    _id: i32,
+    userid: i32,
+    minrounds: i32,
 ) -> Result<Option<models::UserIdRank>, diesel::result::Error> {
     use diesel::sql_query;
 
-    match sql_query(format!("SELECT `id`, (SELECT COUNT(*) FROM users WHERE `rws` >= (SELECT `rws` FROM users WHERE `id` = {})) AS `rank`, `rws` FROM users WHERE `id` = {}", _id, _id))
-        .load::<models::UserIdRank>(conn)
-        {
-
-            Ok(rank_vec) => {
-                if let Some(user_data) = rank_vec.first() {
-                    Ok(Some(*user_data))
-                } else {
-                    Ok(None)
-                }
-            },
-            Err(x) => {
-                Err(x)
-            },
+    match sql_query(format!(
+        include_str!("./sql/playerrank.sql"),
+        minrounds, userid, userid
+    ))
+    .load::<models::UserIdRank>(conn)
+    {
+        Ok(rank_vec) => {
+            if let Some(user_data) = rank_vec.first() {
+                Ok(Some(*user_data))
+            } else {
+                Ok(None)
+            }
         }
+        Err(x) => Err(x),
+    }
 }
 
 pub fn get_leaderboard(
     conn: &MysqlConnection,
     min_rounds_played: i32,
+    limit: i32,
 ) -> Result<Vec<models::LeaderBoardUser>, diesel::result::Error> {
     use diesel::sql_query;
     sql_query(format!(
         include_str!("./sql/leaderboard.sql"),
-        min_rounds_played, min_rounds_played
+        min_rounds_played, min_rounds_played, limit
     ))
     .load::<models::LeaderBoardUser>(conn)
 }
